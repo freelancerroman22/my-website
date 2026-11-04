@@ -604,13 +604,13 @@ def api_upload():
     target_clips = int(request.form.get("num_clips", 28))
     num_recaps = int(request.form.get("num_recaps", 10))
     recap_sec = int(request.form.get("recap_sec", RECAP_TARGET_SEC))
-    aspect = request.form.get("aspect", "9:16")
+    aspect = request.form.get("aspect", "16:9")
     if aspect not in ASPECTS:
-        aspect = "9:16"
+        aspect = "16:9"
     opts = {
         "aspect": aspect,
-        "captions": request.form.get("captions", "1") == "1",
-        "hook_title": request.form.get("hook_title", "1") == "1",
+        "captions": request.form.get("captions", "0") == "1",
+        "hook_title": request.form.get("hook_title", "0") == "1",
     }
 
     job_id = uuid.uuid4().hex[:8]

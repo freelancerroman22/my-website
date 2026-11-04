@@ -59,7 +59,8 @@
   h2{font-size:16px}
   .clip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}
   .clipcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
-  .clipcard.inrecap{border-color:var(--accent)}
+  .clipcard.inrecap{border-color:var(--accent);cursor:grab}
+  .clipcard.inrecap:active{cursor:grabbing}
   .clipcard .vwrap{position:relative;background:#000}
   .clipcard video{width:100%;display:block;aspect-ratio:var(--ar);background:#000;object-fit:contain}
   .clipcard .order{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);color:#fff;width:22px;height:22px;
@@ -97,16 +98,17 @@
       <div><label>প্রতি রিক্যাপ সেকেন্ড</label><input type="number" id="recapSec" value="50" min="20" max="120"></div>
       <div><label>আকার</label>
         <select id="aspect">
+          <option value="16:9" selected>১৬:৯ (ইউটিউব)</option>
           <option value="9:16">৯:১৬ (রিলস/শর্টস)</option>
           <option value="1:1">১:১ (স্কয়ার)</option>
-          <option value="16:9">১৬:৯ (ইউটিউব)</option>
         </select>
       </div>
     </div>
     <div class="checks">
-      <label><input type="checkbox" id="captions" checked> অটো-ক্যাপশন (সাবটাইটেল)</label>
-      <label><input type="checkbox" id="hookTitle" checked> হুক টাইটেল স্ক্রিনে</label>
+      <label><input type="checkbox" id="captions"> অটো-ক্যাপশন (সাবটাইটেল)</label>
+      <label><input type="checkbox" id="hookTitle"> হুক টাইটেল স্ক্রিনে</label>
     </div>
+    <div class="hint">ডিফল্টে ক্লিপে কোনো টেক্সট থাকবে না (পরিষ্কার ক্লিপ)। চাইলে উপরের বক্সে টিক দিয়ে ক্যাপশন/হুক টাইটেল যোগ করতে পারো।</div>
     <div style="margin-top:16px"><button onclick="startUpload()">রিক্যাপ বানাও</button></div>
     <div class="hint">টুল নিজে ছোট পাওয়ারফুল মুহূর্ত বেছে নেয়, ক্যাপশন বসায়, হুক টাইটেল দেয়, আর virality স্কোর দেয়। লম্বা ভিডিওতে কয়েক মিনিট লাগবে।</div>
     <div class="err" id="uploadErr"></div>
@@ -145,7 +147,7 @@
     <div class="okmsg" id="saveMsg" style="text-align:center"></div>
     <div class="err" id="studioErr" style="text-align:center"></div>
 
-    <div class="section-title">এই রিক্যাপের ক্লিপ (ক্রম অনুযায়ী)</div>
+    <div class="section-title">এই রিক্যাপের ক্লিপ — ড্র্যাগ করে বা ↑↓ চেপে সাজাও</div>
     <div class="clip-grid" id="recapClips"></div>
     <div class="section-title">বাকি সব ক্লিপ (virality অনুযায়ী সাজানো) — "+ যোগ" চাপো</div>
     <div class="clip-grid" id="poolClips"></div>
@@ -261,6 +263,13 @@ function clipCard(c,index){
   const inRecap=index!==null;
   const div=document.createElement("div");
   div.className="clipcard"+(inRecap?" inrecap":"");
+  if(inRecap){
+    div.draggable=true;
+    div.ondragstart=e=>{ DRAG_FROM=index; e.dataTransfer.effectAllowed="move"; div.style.opacity=".5"; };
+    div.ondragend=e=>{ div.style.opacity="1"; };
+    div.ondragover=e=>{ e.preventDefault(); e.dataTransfer.dropEffect="move"; };
+    div.ondrop=e=>{ e.preventDefault(); dropOn(index); };
+  }
   let acts = inRecap
     ? `<button class="ghost sm" onclick="move(${index},-1)" ${index===0?"disabled":""}>↑</button>
        <button class="ghost sm" onclick="move(${index},1)" ${index===CUR.length-1?"disabled":""}>↓</button>
@@ -289,6 +298,13 @@ function renderClipCards(){
   info.className=total>75?"err":"muted";
 }
 
+let DRAG_FROM=null;
+function dropOn(i){
+  if(DRAG_FROM===null||DRAG_FROM===i) return;
+  const [m]=CUR.splice(DRAG_FROM,1);
+  CUR.splice(i,0,m);
+  DRAG_FROM=null; renderClipCards();
+}
 function move(i,dir){ const j=i+dir; if(j<0||j>=CUR.length) return; [CUR[i],CUR[j]]=[CUR[j],CUR[i]]; renderClipCards(); }
 function removeClip(i){ if(CUR.length<=1) return; CUR.splice(i,1); renderClipCards(); }
 function addClip(id){ if(!CUR.includes(id)) CUR.push(id); renderClipCards(); }
