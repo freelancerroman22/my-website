@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recap Studio</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#181b22; --panel2:#1f2430; --line:#2a2f3a;
+    --text:#e9edf3; --muted:#9aa4b2; --accent:#4f8cff; --accent2:#2ecc71;
+    --danger:#e05260; --chip:#262c38; --gold:#f5b301; --ar:9/16;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,"Noto Sans Bengali",sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  header .dot{width:10px;height:10px;border-radius:50%;background:var(--accent2)}
+  .wrap{max-width:1200px;margin:0 auto;padding:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input[type=number],input[type=file],select{width:100%;background:var(--panel2);border:1px solid var(--line);
+       color:var(--text);border-radius:8px;padding:10px;font-size:14px}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;
+       padding:10px;font-size:13px;min-height:70px;resize:vertical}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:130px}
+  .checks{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}
+  .checks label{display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:14px;cursor:pointer}
+  .checks input{width:auto}
+  button{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:var(--chip);color:var(--text)}
+  button.sm{padding:5px 9px;font-size:12px;border-radius:7px}
+  button.danger{background:var(--danger)}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  #progress{display:none}
+  .bar{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:10px}
+  .bar>div{height:100%;width:40%;background:var(--accent);animation:slide 1.3s infinite ease-in-out}
+  @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+  .recap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .recap{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;transition:.15s}
+  .recap:hover{border-color:var(--accent)}
+  .recap.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(79,140,255,.3)}
+  .recap h3{margin:0 0 6px;font-size:15px}
+  .recap .meta{font-size:12px;color:var(--muted)}
+  .recap .hooks{margin-top:8px;font-size:12px;opacity:.85;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  #studio{display:none}
+  .videoBox{position:relative;width:fit-content;max-width:100%;margin:0 auto 6px}
+  video.main{max-height:68vh;max-width:100%;border-radius:10px;background:#000;display:block}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+       gap:12px;background:rgba(10,12,16,.82);border-radius:10px;text-align:center;padding:16px}
+  .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .muted{color:var(--muted)}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+  .err{color:var(--danger);font-size:13px;margin-top:8px}
+  .okmsg{color:var(--accent2);font-size:13px;margin-top:8px}
+  h2{font-size:16px}
+  .clip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}
+  .clipcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .clipcard.inrecap{border-color:var(--accent);cursor:grab}
+  .clipcard.inrecap:active{cursor:grabbing}
+  .clipcard .vwrap{position:relative;background:#000}
+  .clipcard video{width:100%;display:block;aspect-ratio:var(--ar);background:#000;object-fit:contain}
+  .clipcard .order{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);color:#fff;width:22px;height:22px;
+       border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px}
+  .clipcard .str{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:var(--gold);
+       padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700}
+  .clipcard .label{padding:9px 10px}
+  .clipcard .hk{font-size:13px;font-weight:600;line-height:1.3}
+  .clipcard .tm{font-size:11px;color:var(--muted);margin-top:3px}
+  .clipcard .acts{display:flex;gap:5px;padding:0 10px 10px;flex-wrap:wrap}
+  .section-title{margin:18px 0 4px;font-size:14px;color:var(--muted)}
+  .pill{display:inline-block;background:var(--chip);padding:3px 9px;border-radius:20px;font-size:12px;margin:3px 4px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot"></span>
+  <h1>Recap Studio</h1>
+  <span class="muted" style="font-size:12px">পডকাস্ট থেকে রিক্যাপ ভিডিও · অটো-ক্যাপশন</span>
+  <span style="flex:1"></span>
+  <span class="muted" id="verText" style="font-size:12px"></span>
+  <button class="ghost sm" id="updateAppBtn" onclick="updateApp()">⟳ আপডেট</button>
+</header>
+
+<div class="wrap">
+
+  <!-- ১. আপলোড -->
+  <div class="card" id="uploadCard">
+    <h2 style="margin-top:0">১. ভিডিও দাও</h2>
+    <label>ভিডিও ফাইল (mp4, mov...)</label>
+    <input type="file" id="videoInput" accept="video/*">
+    <div class="row" style="margin-top:6px">
+      <div><label>আনুমানিক কয়টা ক্লিপ</label><input type="number" id="numClips" value="28" min="6" max="60"></div>
+      <div><label>কয়টা রিক্যাপ</label><input type="number" id="numRecaps" value="10" min="1" max="20"></div>
+      <div><label>প্রতি রিক্যাপ সেকেন্ড</label><input type="number" id="recapSec" value="50" min="20" max="120"></div>
+      <div><label>আকার</label>
+        <select id="aspect">
+          <option value="16:9" selected>১৬:৯ (ইউটিউব)</option>
+          <option value="9:16">৯:১৬ (রিলস/শর্টস)</option>
+          <option value="1:1">১:১ (স্কয়ার)</option>
+        </select>
+      </div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="captions"> অটো-ক্যাপশন (সাবটাইটেল)</label>
+      <label><input type="checkbox" id="hookTitle"> হুক টাইটেল স্ক্রিনে</label>
+    </div>
+    <div class="hint">ডিফল্টে ক্লিপে কোনো টেক্সট থাকবে না (পরিষ্কার ক্লিপ)। চাইলে উপরের বক্সে টিক দিয়ে ক্যাপশন/হুক টাইটেল যোগ করতে পারো।</div>
+    <div style="margin-top:16px"><button onclick="startUpload()">রিক্যাপ বানাও</button></div>
+    <div class="hint">টুল নিজে ছোট পাওয়ারফুল মুহূর্ত বেছে নেয়, ক্যাপশন বসায়, হুক টাইটেল দেয়, আর virality স্কোর দেয়। লম্বা ভিডিওতে কয়েক মিনিট লাগবে।</div>
+    <div class="err" id="uploadErr"></div>
+  </div>
+
+  <!-- ২. প্রসেসিং -->
+  <div class="card" id="progress">
+    <h2 style="margin-top:0">কাজ চলছে...</h2>
+    <div id="progressStep" class="muted">শুরু হচ্ছে...</div>
+    <div class="bar"><div></div></div>
+    <div class="err" id="procErr"></div>
+  </div>
+
+  <!-- পোস্ট ক্যাপশন -->
+  <div class="card" id="postCard" style="display:none">
+    <div class="topbar"><h2 style="margin:0">পোস্ট ক্যাপশন + হ্যাশট্যাগ</h2>
+      <button class="ghost sm" onclick="copyPost()">কপি করো</button></div>
+    <textarea id="postText" readonly></textarea>
+    <div id="hashtags" style="margin-top:8px"></div>
+  </div>
+
+  <!-- ৩. রিক্যাপ তালিকা -->
+  <div class="card" id="recapsCard" style="display:none">
+    <div class="topbar"><h2 style="margin:0">একটা রিক্যাপে ক্লিক করো</h2><span class="muted" id="recapCount"></span></div>
+    <div class="recap-grid" id="recapGrid"></div>
+  </div>
+
+  <!-- ৪. স্টুডিও -->
+  <div class="card" id="studio">
+    <div class="topbar"><h2 style="margin:0" id="studioTitle">রিক্যাপ</h2><span class="muted" id="studioInfo"></span></div>
+    <div class="videoBox">
+      <video class="main" id="player" controls></video>
+      <div class="overlay" id="overlay"><div class="spin"></div><div id="overlayText">পুরো রিক্যাপ ভিডিও বানানো হচ্ছে...</div></div>
+    </div>
+    <div style="text-align:center"><button onclick="renderNow()" id="updateBtn">পুরো রিক্যাপ ভিডিও বানাও / আপডেট করো</button></div>
+    <div class="okmsg" id="saveMsg" style="text-align:center"></div>
+    <div class="err" id="studioErr" style="text-align:center"></div>
+
+    <div class="section-title">এই রিক্যাপের ক্লিপ — ড্র্যাগ করে বা ↑↓ চেপে সাজাও</div>
+    <div class="clip-grid" id="recapClips"></div>
+    <div class="section-title">বাকি সব ক্লিপ (virality অনুযায়ী সাজানো) — "+ যোগ" চাপো</div>
+    <div class="clip-grid" id="poolClips"></div>
+  </div>
+
+</div>
+
+<script>
+let JOB=null, CLIPS=[], RECAPS=[], POST={};
+let CUR=[], CUR_ID=null;
+
+// একটা ভিডিও চালু করলে বাকি সব ভিডিও বন্ধ হবে (একসাথে একটাই বাজবে)
+document.addEventListener("play", function(e){
+  if(e.target && e.target.tagName==="VIDEO"){
+    document.querySelectorAll("video").forEach(v=>{ if(v!==e.target) v.pause(); });
+  }
+}, true);
+
+// ---- অ্যাপ ভার্সন + সেলফ-আপডেট ----
+fetch("/api/version").then(r=>r.json()).then(d=>{
+  document.getElementById("verText").textContent="v"+(d.version||"?");
+}).catch(()=>{});
+
+async function updateApp(){
+  if(!confirm("লেটেস্ট ভার্সন নামিয়ে অ্যাপ আপডেট করবে? (ইন্টারনেট লাগবে)")) return;
+  const btn=document.getElementById("updateAppBtn");
+  btn.disabled=true; btn.textContent="আপডেট হচ্ছে...";
+  try{
+    const res=await fetch("/api/update",{method:"POST"});
+    const d=await res.json();
+    if(d.error) throw new Error(d.error);
+    alert("✅ আপডেট হয়েছে! নতুন ভার্সন: v"+d.version+
+          "\n\nএখন অ্যাপটা বন্ধ করে আবার চালু করো, তাহলে নতুন ভার্সন কাজ করবে।");
+    document.getElementById("verText").textContent="v"+d.version;
+  }catch(ex){
+    alert("আপডেট করা গেল না: "+ex.message);
+  }finally{ btn.disabled=false; btn.textContent="⟳ আপডেট"; }
+}
+
+function clipById(id){ return CLIPS.find(c=>c.id===id); }
+function fmt(s){ const m=Math.floor(s/60),x=Math.round(s%60); return m+":"+String(x).padStart(2,"0"); }
+function clipUrl(c){ return "/output/clips/"+c.file; }
+
+async function startUpload(){
+  const f=document.getElementById("videoInput").files[0];
+  const err=document.getElementById("uploadErr"); err.textContent="";
+  if(!f){ err.textContent="আগে একটা ভিডিও বেছে নাও।"; return; }
+  const fd=new FormData();
+  fd.append("video",f);
+  fd.append("num_clips",document.getElementById("numClips").value);
+  fd.append("num_recaps",document.getElementById("numRecaps").value);
+  fd.append("recap_sec",document.getElementById("recapSec").value);
+  fd.append("aspect",document.getElementById("aspect").value);
+  fd.append("captions",document.getElementById("captions").checked?"1":"0");
+  fd.append("hook_title",document.getElementById("hookTitle").checked?"1":"0");
+  document.getElementById("uploadCard").style.display="none";
+  document.getElementById("progress").style.display="block";
+  try{
+    const res=await fetch("/api/upload",{method:"POST",body:fd});
+    const d=await res.json();
+    if(d.error) throw new Error(d.error);
+    JOB=d.job_id; poll();
+  }catch(ex){ document.getElementById("procErr").textContent="সমস্যা: "+ex.message; }
+}
+
+async function poll(){
+  const res=await fetch("/api/status/"+JOB);
+  const d=await res.json();
+  document.getElementById("progressStep").textContent=d.step||"";
+  if(d.status==="error"){ document.getElementById("procErr").textContent="সমস্যা: "+(d.error||"অজানা"); return; }
+  if(d.status==="done"){
+    CLIPS=d.clips; RECAPS=d.recaps; POST=d.post||{};
+    const ar={"9:16":"9/16","1:1":"1/1","16:9":"16/9"}[d.aspect]||"9/16";
+    document.documentElement.style.setProperty("--ar",ar);
+    document.getElementById("progress").style.display="none";
+    showPost(); showRecaps();
+    if(RECAPS.length) openStudio(RECAPS[0]);
+    return;
+  }
+  setTimeout(poll,1500);
+}
+
+function showPost(){
+  if(!POST.caption && !(POST.hashtags||[]).length) return;
+  document.getElementById("postText").value=POST.caption||"";
+  const h=document.getElementById("hashtags"); h.innerHTML="";
+  (POST.hashtags||[]).forEach(t=>{ const s=document.createElement("span"); s.className="pill"; s.textContent=t; h.appendChild(s); });
+  document.getElementById("postCard").style.display="block";
+}
+function copyPost(){
+  const txt=(POST.caption||"")+"\n\n"+(POST.hashtags||[]).join(" ");
+  navigator.clipboard.writeText(txt).then(()=>{},()=>{});
+}
+
+function showRecaps(){
+  const grid=document.getElementById("recapGrid"); grid.innerHTML="";
+  RECAPS.forEach(r=>{
+    const hooks=r.clip_ids.map(id=>"• "+clipById(id).hook).join("<br>");
+    const div=document.createElement("div");
+    div.className="recap"; div.dataset.id=r.id; div.onclick=()=>openStudio(r);
+    div.innerHTML=`<h3>${r.title}</h3><div class="meta">${r.clip_ids.length}টা ক্লিপ</div><div class="hooks">${hooks}</div>`;
+    grid.appendChild(div);
+  });
+  document.getElementById("recapCount").textContent=RECAPS.length+"টা রিক্যাপ";
+  document.getElementById("recapsCard").style.display="block";
+}
+function markActive(){ document.querySelectorAll(".recap").forEach(e=>e.classList.toggle("active",Number(e.dataset.id)===CUR_ID)); }
+
+function openStudio(r){
+  CUR=[...r.clip_ids]; CUR_ID=r.id;
+  document.getElementById("studioTitle").textContent=r.title;
+  document.getElementById("studio").style.display="block";
+  document.getElementById("saveMsg").textContent="";
+  document.getElementById("studioErr").textContent="";
+  markActive(); renderClipCards(); renderNow();
+  document.getElementById("studio").scrollIntoView({behavior:"smooth"});
+}
+
+function clipCard(c,index){
+  const inRecap=index!==null;
+  const div=document.createElement("div");
+  div.className="clipcard"+(inRecap?" inrecap":"");
+  if(inRecap){
+    div.draggable=true;
+    div.ondragstart=e=>{ DRAG_FROM=index; e.dataTransfer.effectAllowed="move"; div.style.opacity=".5"; };
+    div.ondragend=e=>{ div.style.opacity="1"; };
+    div.ondragover=e=>{ e.preventDefault(); e.dataTransfer.dropEffect="move"; };
+    div.ondrop=e=>{ e.preventDefault(); dropOn(index); };
+  }
+  let acts = inRecap
+    ? `<button class="ghost sm" onclick="move(${index},-1)" ${index===0?"disabled":""}>↑</button>
+       <button class="ghost sm" onclick="move(${index},1)" ${index===CUR.length-1?"disabled":""}>↓</button>
+       <button class="danger sm" onclick="removeClip(${index})">✕ বাদ</button>`
+    : `<button class="sm" onclick="addClip(${c.id})">+ যোগ</button>`;
+  const vwrap = c.file
+    ? `<div class="vwrap">${inRecap?`<span class="order">${index+1}</span>`:""}
+         <span class="str">🔥 ${c.strength||5}</span>
+         <video src="${clipUrl(c)}" preload="metadata" controls></video></div>`
+    : `<div class="vwrap" style="padding:24px;text-align:center;color:var(--muted)">ভিডিও হয়নি</div>`;
+  div.innerHTML=vwrap+`<div class="label"><div class="hk">${c.hook}</div>
+     <div class="tm">${fmt(c.start)} – ${fmt(c.end)} · ${c.dur.toFixed(0)} সে.</div></div>
+     <div class="acts">${acts}</div>`;
+  return div;
+}
+
+function renderClipCards(){
+  const rc=document.getElementById("recapClips"); rc.innerHTML="";
+  let total=0;
+  CUR.forEach((id,i)=>{ const c=clipById(id); total+=c.dur; rc.appendChild(clipCard(c,i)); });
+  const pc=document.getElementById("poolClips"); pc.innerHTML="";
+  CLIPS.filter(c=>!CUR.includes(c.id)).sort((a,b)=>(b.strength||5)-(a.strength||5))
+       .forEach(c=>pc.appendChild(clipCard(c,null)));
+  const info=document.getElementById("studioInfo");
+  info.textContent=`${CUR.length}টা ক্লিপ · মোট ~${Math.round(total)} সেকেন্ড`;
+  info.className=total>75?"err":"muted";
+}
+
+let DRAG_FROM=null;
+function dropOn(i){
+  if(DRAG_FROM===null||DRAG_FROM===i) return;
+  const [m]=CUR.splice(DRAG_FROM,1);
+  CUR.splice(i,0,m);
+  DRAG_FROM=null; renderClipCards();
+}
+function move(i,dir){ const j=i+dir; if(j<0||j>=CUR.length) return; [CUR[i],CUR[j]]=[CUR[j],CUR[i]]; renderClipCards(); }
+function removeClip(i){ if(CUR.length<=1) return; CUR.splice(i,1); renderClipCards(); }
+function addClip(id){ if(!CUR.includes(id)) CUR.push(id); renderClipCards(); }
+
+async function renderNow(){
+  const overlay=document.getElementById("overlay");
+  const btn=document.getElementById("updateBtn");
+  const err=document.getElementById("studioErr"), save=document.getElementById("saveMsg");
+  err.textContent=""; save.textContent="";
+  overlay.style.display="flex";
+  document.getElementById("overlayText").textContent="পুরো রিক্যাপ ভিডিও বানানো হচ্ছে...";
+  btn.disabled=true;
+  try{
+    const name="recap_"+(CUR_ID+1);
+    const res=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({job_id:JOB,clip_ids:CUR,name:name})});
+    const d=await res.json();
+    if(d.error) throw new Error(d.error);
+    const player=document.getElementById("player");
+    player.src="/output/"+d.file+"?t="+Date.now(); player.load();
+    overlay.style.display="none";
+    save.textContent="✅ সেভ হয়েছে: output ফোল্ডারে "+d.file;
+  }catch(ex){
+    document.getElementById("overlayText").textContent="বানানো যায়নি";
+    err.textContent="সমস্যা: "+ex.message;
+  }finally{ btn.disabled=false; }
+}
+</script>
+</body>
+</html>

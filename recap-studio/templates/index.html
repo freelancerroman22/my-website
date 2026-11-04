@@ -159,6 +159,13 @@
 let JOB=null, CLIPS=[], RECAPS=[], POST={};
 let CUR=[], CUR_ID=null;
 
+// একটা ভিডিও চালু করলে বাকি সব ভিডিও বন্ধ হবে (একসাথে একটাই বাজবে)
+document.addEventListener("play", function(e){
+  if(e.target && e.target.tagName==="VIDEO"){
+    document.querySelectorAll("video").forEach(v=>{ if(v!==e.target) v.pause(); });
+  }
+}, true);
+
 // ---- অ্যাপ ভার্সন + সেলফ-আপডেট ----
 fetch("/api/version").then(r=>r.json()).then(d=>{
   document.getElementById("verText").textContent="v"+(d.version||"?");

@@ -31,15 +31,14 @@ API_KEY = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY
 # fallback মডেল; কিন্তু আসলে get_models() key থেকে কাজের মডেল নিজে খুঁজে নেয়
 GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest",
                  "gemini-2.0-flash-001", "gemini-2.5-flash-lite"]
-_MODEL_CACHE = []
+_DISCOVERED = None
 
 
-def get_models(client):
-    """key-তে আসলে যে মডেলগুলো আছে (generateContent সাপোর্ট করে) সেগুলো খুঁজে বের করা,
-    flash আগে। না পেলে উপরের fallback লিস্ট।"""
-    global _MODEL_CACHE
-    if _MODEL_CACHE:
-        return _MODEL_CACHE
+def _discover(client):
+    """key-তে আসলে যে generateContent মডেলগুলো আছে, একবার খুঁজে ক্যাশে রাখা।"""
+    global _DISCOVERED
+    if _DISCOVERED is not None:
+        return _DISCOVERED
     found = []
     try:
         for m in client.models.list():
@@ -54,24 +53,34 @@ def get_models(client):
                     found.append(name)
     except Exception:
         pass
+    _DISCOVERED = sorted(set(found))
+    return _DISCOVERED
 
-    def rank(n):
+
+def get_models(client, quality=False):
+    """quality=False: দ্রুত flash আগে (ট্রান্সক্রাইব/পোস্ট)।
+    quality=True: সবচেয়ে বুদ্ধিমান মডেল আগে (ক্লিপ বাছাই, ভালো ভ্যালুর জন্য)।"""
+    found = list(_discover(client))
+
+    def rank_fast(n):
         s = 0
-        if "flash" in n:
-            s -= 10
-        if "2.5" in n:
-            s -= 3
-        elif "2.0" in n:
-            s -= 2
-        if "lite" in n:
-            s += 1
-        if "pro" in n:
-            s += 2
+        if "flash" in n: s -= 10
+        if "2.5" in n: s -= 3
+        elif "2.0" in n: s -= 2
+        if "lite" in n: s += 1
+        if "pro" in n: s += 2
         return s
 
-    found = sorted(set(found), key=rank)
+    def rank_quality(n):
+        s = 0
+        if "pro" in n: s -= 6
+        if "2.5" in n: s -= 4
+        if "flash" in n: s -= 2
+        if "lite" in n: s += 4   # lite সবচেয়ে কম বুদ্ধিমান, পেছনে
+        return s
+
+    found = sorted(found, key=(rank_quality if quality else rank_fast))
     order = found + [m for m in GEMINI_MODELS if m not in found]
-    _MODEL_CACHE = order
     return order
 TRANSCRIBE_CHUNK_SEC = 600         # অডিও কত সেকেন্ডের টুকরো করে ট্রান্সক্রাইব করবে
 # ক্লিপ ছোট: কোনোটা মাত্র ৩ সে. (একটা পাঞ্চি লাইন), কোনোটা একটু বড়
@@ -264,6 +273,18 @@ On Purpose, Mel Robbins এর মতো পডকাস্ট থেকে ভ�
 কতগুলো নেবে তা তুমি নিজে ঠিক করো, মোটামুটি {target_clips}টার আশেপাশে
 (কম-বেশি হতে পারে, যতগুলো সত্যিই পাওয়ারফুল)।
 
+একটা মুহূর্ত তখনই নেবে যখন এর অন্তত একটা আছে (এটাই "ভ্যালু"):
+- একটা counterintuitive/surprising সত্য বা bold দাবি (সাধারণ জ্ঞান না)।
+- একটা শক্তিশালী mental model, নিয়ম, বা এক-লাইনের গভীর উপদেশ যা মানুষ সেভ/শেয়ার করতে চাইবে।
+- তীব্র emotion, ব্যক্তিগত স্বীকারোক্তি, বা একটা টানটান ছোট গল্প/মুহূর্ত।
+- একটা প্রশ্ন বা লাইন যা curiosity-gap তৈরি করে (শুনে মানুষ থমকে যায়)।
+
+কঠোরভাবে বাদ দাও (এগুলো ভ্যালু না):
+- সাধারণ, obvious, বা cliché কথা ("হ্যাঁ, একদম", "ভালো প্রশ্ন", ভূমিকা, ধন্যবাদ)।
+- হোস্টের সেটআপ/প্রশ্ন, বা অতিথি পরিচয়, বা স্পন্সর/বিজ্ঞাপন অংশ।
+- এমন লাইন যেটা context ছাড়া একা শুনলে মানে বোঝায় না।
+মনে রাখো: কম কিন্তু সত্যিকারের পাওয়ারফুল ক্লিপ অনেক ভালো, দুর্বল ক্লিপে সংখ্যা ভরাট কোরো না।
+
 ক্লিপের নিয়ম (খুব জরুরি, রেফারেন্স স্টাইল):
 - প্রতিটা ক্লিপ খুব ছোট: {MIN_CLIP_SEC}-{MAX_CLIP_SEC} সেকেন্ড।
 - কিছু ক্লিপ হবে মাত্র ৩-৬ সেকেন্ডের, শুধু একটা পাঞ্চি লাইন, যদি সেই এক লাইনই
@@ -298,7 +319,7 @@ scroll-stopping ও ভাইরাল হওয়ার যোগ্য। স
 {transcript_block}
 """
     raw, last_err = None, None
-    models = get_models(client)
+    models = get_models(client, quality=True)   # ভালো ভ্যালুর জন্য সবচেয়ে বুদ্ধিমান মডেল
     for model in models:
         try:
             resp = client.models.generate_content(model=model, contents=prompt)
