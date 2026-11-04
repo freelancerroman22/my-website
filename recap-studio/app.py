@@ -28,7 +28,51 @@ from flask import Flask, jsonify, request, send_from_directory, render_template
 # -------------------- সেটিংস --------------------
 # Google-এর ফ্রি Gemini API key (https://aistudio.google.com/apikey থেকে ফ্রি)
 API_KEY = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", "")
-GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+# fallback মডেল; কিন্তু আসলে get_models() key থেকে কাজের মডেল নিজে খুঁজে নেয়
+GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest",
+                 "gemini-2.0-flash-001", "gemini-2.5-flash-lite"]
+_MODEL_CACHE = []
+
+
+def get_models(client):
+    """key-তে আসলে যে মডেলগুলো আছে (generateContent সাপোর্ট করে) সেগুলো খুঁজে বের করা,
+    flash আগে। না পেলে উপরের fallback লিস্ট।"""
+    global _MODEL_CACHE
+    if _MODEL_CACHE:
+        return _MODEL_CACHE
+    found = []
+    try:
+        for m in client.models.list():
+            name = (getattr(m, "name", "") or "").split("/")[-1]
+            if not name or "embedding" in name or "image" in name or "tts" in name:
+                continue
+            actions = getattr(m, "supported_actions", None)
+            if actions is None:
+                actions = getattr(m, "supported_generation_methods", None)
+            if actions is None or "generateContent" in actions:
+                if "flash" in name or "pro" in name:
+                    found.append(name)
+    except Exception:
+        pass
+
+    def rank(n):
+        s = 0
+        if "flash" in n:
+            s -= 10
+        if "2.5" in n:
+            s -= 3
+        elif "2.0" in n:
+            s -= 2
+        if "lite" in n:
+            s += 1
+        if "pro" in n:
+            s += 2
+        return s
+
+    found = sorted(set(found), key=rank)
+    order = found + [m for m in GEMINI_MODELS if m not in found]
+    _MODEL_CACHE = order
+    return order
 TRANSCRIBE_CHUNK_SEC = 600         # অডিও কত সেকেন্ডের টুকরো করে ট্রান্সক্রাইব করবে
 # ক্লিপ ছোট: কোনোটা মাত্র ৩ সে. (একটা পাঞ্চি লাইন), কোনোটা একটু বড়
 MIN_CLIP_SEC = 3
@@ -137,7 +181,8 @@ def transcribe(audio_path: Path, job=None):
 
         audio_bytes = part.read_bytes()
         raw, last_err = None, None
-        for model in GEMINI_MODELS:
+        models = get_models(client)
+        for model in models:
             try:
                 resp = client.models.generate_content(
                     model=model,
@@ -155,7 +200,8 @@ def transcribe(audio_path: Path, job=None):
                 continue
         part.unlink(missing_ok=True)
         if raw is None:
-            raise RuntimeError(f"Gemini ট্রান্সক্রাইব করতে পারেনি: {last_err}")
+            raise RuntimeError(f"Gemini ট্রান্সক্রাইব করতে পারেনি। চেষ্টা করা মডেল: "
+                               f"{models}. শেষ এরর: {last_err}")
 
         try:
             s0, e0 = raw.find("{"), raw.rfind("}")
@@ -252,7 +298,8 @@ scroll-stopping ও ভাইরাল হওয়ার যোগ্য। স
 {transcript_block}
 """
     raw, last_err = None, None
-    for model in GEMINI_MODELS:
+    models = get_models(client)
+    for model in models:
         try:
             resp = client.models.generate_content(model=model, contents=prompt)
             raw = resp.text.strip()
@@ -466,10 +513,10 @@ def gen_post_copy(clips):
         "শুধু JSON দাও: {\"caption\":\"...\",\"hashtags\":[\"#..\"]}\n\n"
         f"হুকগুলো:\n{hooks}"
     )
-    for model in GEMINI_MODELS:
+    client = genai.Client(api_key=API_KEY)
+    for model in get_models(client):
         try:
-            resp = genai.Client(api_key=API_KEY).models.generate_content(
-                model=model, contents=prompt)
+            resp = client.models.generate_content(model=model, contents=prompt)
             raw = resp.text.strip()
             s, e = raw.find("{"), raw.rfind("}")
             data = json.loads(raw[s:e + 1])
