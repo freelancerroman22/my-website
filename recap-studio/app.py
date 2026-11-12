@@ -82,7 +82,7 @@ def get_models(client, quality=False):
     found = sorted(found, key=(rank_quality if quality else rank_fast))
     order = found + [m for m in GEMINI_MODELS if m not in found]
     return order
-TRANSCRIBE_CHUNK_SEC = 600         # অডিও কত সেকেন্ডের টুকরো করে ট্রান্সক্রাইব করবে
+TRANSCRIBE_CHUNK_SEC = 300         # অডিও কত সেকেন্ডের টুকরো (ছোট রাখলে উত্তর কাটে না)
 # ক্লিপ = একটা পুরো ভ্যালুয়েবল চিন্তা (হুক + শেষ পর্যন্ত punchline), ছোট টুকরো না
 CLIP_MIN_DEFAULT = 30              # ডিফল্ট ক্লিপ দৈর্ঘ্য রেঞ্জ (সেকেন্ড)
 CLIP_MAX_DEFAULT = 60
@@ -162,6 +162,38 @@ def extract_audio(video_path: Path, job_id: str) -> Path:
     return audio_path
 
 
+def parse_time(x):
+    """সেকেন্ড হিসেবে পার্স করা — সংখ্যা, "ss", "mm:ss", "hh:mm:ss" সব সামলায়।"""
+    if x is None:
+        return None
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        pass
+    try:
+        parts = [float(p) for p in str(x).strip().split(":")]
+        sec = 0.0
+        for p in parts:
+            sec = sec * 60 + p
+        return sec
+    except Exception:
+        return None
+
+
+def salvage_segments(raw):
+    """JSON কাটা গেলেও যতগুলো সম্পূর্ণ {..} segment আছে উদ্ধার করা।"""
+    import re
+    out = []
+    for m in re.finditer(r'\{[^{}]*\}', raw or ""):
+        try:
+            o = json.loads(m.group(0))
+            if isinstance(o, dict) and "text" in o:
+                out.append(o)
+        except Exception:
+            continue
+    return out
+
+
 def transcribe(audio_path: Path, job=None):
     """Google Gemini (ফ্রি) দিয়ে অডিও ট্রান্সক্রাইব, টাইমস্ট্যাম্প সহ। লম্বা অডিও
     টুকরো করে পাঠানো হয়, পরে টাইমস্ট্যাম্প জোড়া লাগে।"""
@@ -214,17 +246,22 @@ def transcribe(audio_path: Path, job=None):
             raise RuntimeError(f"Gemini ট্রান্সক্রাইব করতে পারেনি। চেষ্টা করা মডেল: "
                                f"{models}. শেষ এরর: {last_err}")
 
+        # JSON পার্স; কাটা গেলে যতটুকু আছে উদ্ধার
+        segs = []
         try:
             s0, e0 = raw.find("{"), raw.rfind("}")
             data = json.loads(raw[s0:e0 + 1])
-            for s in data.get("segments", []):
-                segments.append({
-                    "start": float(s["start"]) + t,
-                    "end": float(s["end"]) + t,
-                    "text": str(s.get("text", "")).strip(),
-                })
+            segs = data.get("segments", [])
         except Exception:
-            pass
+            segs = salvage_segments(raw)
+
+        for s in segs:
+            st = parse_time(s.get("start"))
+            en = parse_time(s.get("end"))
+            txt = str(s.get("text", "")).strip()
+            if st is None or en is None or not txt:
+                continue
+            segments.append({"start": st + t, "end": en + t, "text": txt})
 
         t += clen
         idx += 1
@@ -659,7 +696,8 @@ def process_video(job_id, target_clips, num_recaps, recap_sec, opts):
         audio.unlink(missing_ok=True)
 
         if not segments:
-            raise RuntimeError("ট্রান্সক্রিপ্ট পাওয়া যায়নি। অডিও ঠিক আছে কিনা দেখো।")
+            raise RuntimeError("ট্রান্সক্রিপ্ট পাওয়া যায়নি। ভিডিওতে স্পষ্ট কথা আছে কিনা দেখো, "
+                               "অথবা আবার চেষ্টা করো (Gemini সাময়িকভাবে ব্যস্ত থাকতে পারে)।")
 
         job["step"] = "সেরা পুরো-চিন্তার মুহূর্ত খোঁজা হচ্ছে..."
         clips = find_clips(segments, target_clips,
