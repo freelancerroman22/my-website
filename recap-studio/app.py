@@ -83,12 +83,14 @@ def get_models(client, quality=False):
     order = found + [m for m in GEMINI_MODELS if m not in found]
     return order
 TRANSCRIBE_CHUNK_SEC = 600         # অডিও কত সেকেন্ডের টুকরো করে ট্রান্সক্রাইব করবে
-# ক্লিপ ছোট: কোনোটা মাত্র ৩ সে. (একটা পাঞ্চি লাইন), কোনোটা একটু বড়
-MIN_CLIP_SEC = 3
-MAX_CLIP_SEC = 20
-LEAD_IN = 0.25                     # ক্লিপের শুরুতে সামান্য আগে থেকে (প্রথম শব্দ যেন না কাটে)
-TAIL = 0.45                        # ক্লিপের শেষে সামান্য পরে পর্যন্ত
-RECAP_TARGET_SEC = 50              # একটা রিক্যাপ আনুমানিক কত সেকেন্ড হবে
+# ক্লিপ = একটা পুরো ভ্যালুয়েবল চিন্তা (হুক + শেষ পর্যন্ত punchline), ছোট টুকরো না
+CLIP_MIN_DEFAULT = 30              # ডিফল্ট ক্লিপ দৈর্ঘ্য রেঞ্জ (সেকেন্ড)
+CLIP_MAX_DEFAULT = 60
+ABS_MIN_CLIP = 5                   # একদম সর্বনিম্ন/সর্বোচ্চ সীমা
+ABS_MAX_CLIP = 200
+LEAD_IN = 0.3                      # ক্লিপের শুরুতে সামান্য আগে (প্রথম শব্দ যেন না কাটে)
+TAIL = 0.5                         # ক্লিপের শেষে সামান্য পরে পর্যন্ত
+RECAP_TARGET_SEC = 120            # রিক্যাপ লক্ষ্য ~২ মিনিট
 
 # আকার অনুযায়ী আউটপুট সাইজ (W, H)
 ASPECTS = {
@@ -254,8 +256,8 @@ def tidy_hook(hook: str) -> str:
     return h
 
 
-def find_clips(segments, target_clips):
-    """Gemini দিয়ে অনেকগুলো ছোট পাঞ্চি মুহূর্ত + হুক বের করা।"""
+def find_clips(segments, target_clips, clip_min=CLIP_MIN_DEFAULT, clip_max=CLIP_MAX_DEFAULT):
+    """Gemini দিয়ে অনেকগুলো পুরো-চিন্তার ভ্যালুয়েবল ক্লিপ + হুক বের করা।"""
     from google import genai
     if not API_KEY:
         raise RuntimeError("Gemini API key নেই।")
@@ -286,15 +288,17 @@ On Purpose, Mel Robbins এর মতো পডকাস্ট থেকে ভ�
 মনে রাখো: কম কিন্তু সত্যিকারের পাওয়ারফুল ক্লিপ অনেক ভালো, দুর্বল ক্লিপে সংখ্যা ভরাট কোরো না।
 
 ক্লিপের নিয়ম (খুব জরুরি, রেফারেন্স স্টাইল):
-- প্রতিটা ক্লিপ খুব ছোট: {MIN_CLIP_SEC}-{MAX_CLIP_SEC} সেকেন্ড।
-- কিছু ক্লিপ হবে মাত্র ৩-৬ সেকেন্ডের, শুধু একটা পাঞ্চি লাইন, যদি সেই এক লাইনই
-  যথেষ্ট পাওয়ারফুল হয়।
-- একটা পুরো বড় অংশ নিও না; শুধু সবচেয়ে ধাক্কা-দেওয়া অংশটুকু কাটো।
-- ক্লিপ যেন কথার মাঝপথে শুরু বা শেষ না হয়।
+- প্রতিটা ক্লিপ হবে একটা **পুরো, সম্পূর্ণ চিন্তা** — একটা শক্তিশালী লাইন দিয়ে শুরু
+  (hook), তারপর সেই পয়েন্টটা বুঝিয়ে শেষে একটা payoff/punchline-এ শেষ।
+- দৈর্ঘ্য মোটামুটি {clip_min}-{clip_max} সেকেন্ড। চিন্তাটা সম্পূর্ণ করতে একটু কম-বেশি
+  হতে পারে, কিন্তু কখনো {ABS_MAX_CLIP} সেকেন্ডের বেশি না।
+- ক্লিপ যেন একটা স্বাভাবিক জায়গায় শুরু ও শেষ হয়, কথার মাঝপথে কেটে নয়।
+- punchline/সিদ্ধান্তের লাইনটা অবশ্যই ক্লিপের ভেতরে রাখো, কেটে ফেলো না।
+- একা দেখলে ক্লিপটা নিজে থেকেই সম্পূর্ণ ও বোধগম্য হতে হবে।
 
 hook লেখার নিয়ম (রেফারেন্স স্টাইল, খুব জরুরি):
-- hook হবে ক্লিপের ভেতরে বক্তার বলা সবচেয়ে ধাক্কা-দেওয়া আসল বাক্যটাই, প্রায়
-  হুবহু (verbatim)। নিজে থেকে নতুন টাইটেল বানাবে না।
+- hook হবে ক্লিপের শুরুর দিকের সবচেয়ে ধাক্কা-দেওয়া আসল বাক্যটাই, প্রায় হুবহু
+  (verbatim)। নিজে থেকে নতুন টাইটেল বানাবে না।
 - খুব ছোট রাখো, সর্বোচ্চ ৬-১০ শব্দ। দরকার হলে বড় বাক্যের সবচেয়ে পাঞ্চি অংশটুকু নাও।
 - একটা bold দাবি বা curiosity-gap প্রশ্ন, যা শুনে মানুষ থমকে যায়।
 - বর্ণনামূলক টাইটেল বা কোলন ( : ) লিখবে না।
@@ -349,10 +353,10 @@ scroll-stopping ও ভাইরাল হওয়ার যোগ্য। স
         if st >= max_end:          # ট্রান্সক্রিপ্টের বাইরে, বাদ
             continue
         en = min(en, max_end)
-        if en - st < MIN_CLIP_SEC:
-            en = min(st + MIN_CLIP_SEC, max_end)
-        if en - st > MAX_CLIP_SEC:
-            en = st + MAX_CLIP_SEC
+        if en - st < ABS_MIN_CLIP:      # খুব ছোট হলে বাদ (চিন্তা অসম্পূর্ণ)
+            continue
+        if en - st > ABS_MAX_CLIP:      # runaway হলে কাটি
+            en = st + ABS_MAX_CLIP
         if en <= st:
             continue
         try:
@@ -484,34 +488,63 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return path
 
 
+def get_src_dims(video_path: Path):
+    out = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height", "-of", "csv=p=0", str(video_path)],
+        capture_output=True, text=True)
+    try:
+        w, h = out.stdout.strip().split(",")[:2]
+        return int(w), int(h)
+    except Exception:
+        return 1920, 1080
+
+
 def render_single_clip(job_id, clip, video_path, duration, opts, segments):
-    """একটা ক্লিপকে আলাদা ছোট ভিডিও বানানো (আকার + ক্যাপশন + হুক টাইটেল সহ)।"""
+    """একটা ক্লিপ আলাদা ভিডিও বানানো।
+    ডিফল্ট: আসল আকার, আসল কোয়ালিটি (stream copy, রি-এনকোড ছাড়া, দ্রুত)।
+    শুধু আকার বদলালে বা ক্যাপশন/হুক দিলে তখন রি-এনকোড হয়।"""
     start = max(0, clip["start"] - LEAD_IN)
     end = clip["end"] + TAIL
     if duration:
         end = min(end, duration)
     render_dur = end - start
 
-    aspect = opts.get("aspect", "9:16")
-    vf, w, h = aspect_filter(aspect)
+    aspect = opts.get("aspect", "original")
+    captions = opts.get("captions", False)
+    hook = opts.get("hook_title", False)
+    fname = f"{job_id}_clip_{clip['id']}.mp4"
+    out = CLIPS_DIR / fname
 
-    # ক্যাপশন/হুক টাইটেল ass ফাইল (WORK_DIR এ, cwd relative দিয়ে Windows path ঝামেলা এড়াই)
+    # পরিষ্কার ক্লিপ (আসল আকার, টেক্সট নেই) → stream copy, আসল কোয়ালিটি
+    if aspect in ("original", "", None) and not captions and not hook:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", str(start), "-i", str(video_path),
+             "-t", str(render_dur), "-c", "copy",
+             "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(out)],
+            check=True, capture_output=True)
+        return fname
+
+    # আকার বদল / ক্যাপশন / হুক → রি-এনকোড
+    if aspect in ("original", "", None):
+        w, h = get_src_dims(video_path)
+        vf = "setsar=1"
+    else:
+        vf, w, h = aspect_filter(aspect)
+
     ass_name = f"{job_id}_clip_{clip['id']}.ass"
     ass_path = WORK_DIR / ass_name
     ass_made = None
-    if opts.get("captions") or opts.get("hook_title"):
-        ass_made = build_ass(ass_path, clip, segments, w, h, start, render_dur,
-                             opts.get("captions", True), opts.get("hook_title", True))
+    if captions or hook:
+        ass_made = build_ass(ass_path, clip, segments, w, h, start, render_dur, captions, hook)
     if ass_made:
         vf = vf + f",ass={ass_name}"
 
-    fname = f"{job_id}_clip_{clip['id']}.mp4"
-    out = CLIPS_DIR / fname
     run_in = WORK_DIR if ass_made else None
     cmd = ["ffmpeg", "-y", "-ss", str(start), "-i", str(video_path),
            "-t", str(render_dur), "-vf", vf,
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-           "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+           "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
            "-movflags", "+faststart", str(out)]
     subprocess.run(cmd, check=True, capture_output=True, cwd=run_in)
     if ass_made:
@@ -628,8 +661,10 @@ def process_video(job_id, target_clips, num_recaps, recap_sec, opts):
         if not segments:
             raise RuntimeError("ট্রান্সক্রিপ্ট পাওয়া যায়নি। অডিও ঠিক আছে কিনা দেখো।")
 
-        job["step"] = "সেরা ছোট মুহূর্ত খোঁজা হচ্ছে..."
-        clips = find_clips(segments, target_clips)
+        job["step"] = "সেরা পুরো-চিন্তার মুহূর্ত খোঁজা হচ্ছে..."
+        clips = find_clips(segments, target_clips,
+                           opts.get("clip_min", CLIP_MIN_DEFAULT),
+                           opts.get("clip_max", CLIP_MAX_DEFAULT))
         if not clips:
             raise RuntimeError("কোনো ভালো ক্লিপ পাওয়া যায়নি। আবার চেষ্টা করো বা অন্য ভিডিও দাও।")
 
@@ -669,14 +704,18 @@ def api_upload():
     if not file:
         return jsonify(error="কোনো ভিডিও পাওয়া যায়নি"), 400
 
-    target_clips = int(request.form.get("num_clips", 28))
+    target_clips = int(request.form.get("num_clips", 20))
     num_recaps = int(request.form.get("num_recaps", 10))
     recap_sec = int(request.form.get("recap_sec", RECAP_TARGET_SEC))
-    aspect = request.form.get("aspect", "16:9")
-    if aspect not in ASPECTS:
-        aspect = "16:9"
+    clip_min = int(request.form.get("clip_min", CLIP_MIN_DEFAULT))
+    clip_max = int(request.form.get("clip_max", CLIP_MAX_DEFAULT))
+    aspect = request.form.get("aspect", "original")   # ডিফল্ট: আসল আকার, রিফ্রেম নেই
+    if aspect != "original" and aspect not in ASPECTS:
+        aspect = "original"
     opts = {
         "aspect": aspect,
+        "clip_min": clip_min,
+        "clip_max": clip_max,
         "captions": request.form.get("captions", "0") == "1",
         "hook_title": request.form.get("hook_title", "0") == "1",
     }
@@ -708,7 +747,7 @@ def api_status(job_id):
     return jsonify(
         status=job["status"], step=job["step"], error=job["error"],
         clips=job["clips"], recaps=job["recaps"],
-        post=job.get("post", {}), aspect=job.get("opts", {}).get("aspect", "9:16"),
+        post=job.get("post", {}), aspect=job.get("opts", {}).get("aspect", "original"),
     )
 
 

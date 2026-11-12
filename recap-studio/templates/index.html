@@ -93,12 +93,20 @@
     <label>ভিডিও ফাইল (mp4, mov...)</label>
     <input type="file" id="videoInput" accept="video/*">
     <div class="row" style="margin-top:6px">
-      <div><label>আনুমানিক কয়টা ক্লিপ</label><input type="number" id="numClips" value="28" min="6" max="60"></div>
-      <div><label>কয়টা রিক্যাপ</label><input type="number" id="numRecaps" value="10" min="1" max="20"></div>
-      <div><label>প্রতি রিক্যাপ সেকেন্ড</label><input type="number" id="recapSec" value="50" min="20" max="120"></div>
+      <div><label>ক্লিপের দৈর্ঘ্য (পুরো চিন্তা)</label>
+        <select id="clipLen">
+          <option value="15,30">ছোট (১৫–৩০s)</option>
+          <option value="30,60" selected>স্ট্যান্ডার্ড (৩০–৬০s)</option>
+          <option value="60,90">গভীর (৬০–৯০s)</option>
+          <option value="90,180">লম্বা (৯০s–৩m)</option>
+          <option value="15,180">মিক্স (১৫s–৩m)</option>
+        </select>
+      </div>
+      <div><label>আনুমানিক কয়টা ক্লিপ</label><input type="number" id="numClips" value="20" min="4" max="60"></div>
       <div><label>আকার</label>
         <select id="aspect">
-          <option value="16:9" selected>১৬:৯ (ইউটিউব)</option>
+          <option value="original" selected>আসল আকার (রিফ্রেম নেই)</option>
+          <option value="16:9">১৬:৯ (ইউটিউব)</option>
           <option value="9:16">৯:১৬ (রিলস/শর্টস)</option>
           <option value="1:1">১:১ (স্কয়ার)</option>
         </select>
@@ -108,7 +116,9 @@
       <label><input type="checkbox" id="captions"> অটো-ক্যাপশন (সাবটাইটেল)</label>
       <label><input type="checkbox" id="hookTitle"> হুক টাইটেল স্ক্রিনে</label>
     </div>
-    <div class="hint">ডিফল্টে ক্লিপে কোনো টেক্সট থাকবে না (পরিষ্কার ক্লিপ)। চাইলে উপরের বক্সে টিক দিয়ে ক্যাপশন/হুক টাইটেল যোগ করতে পারো।</div>
+    <div class="hint">ডিফল্ট: প্রতিটা ক্লিপ একটা পুরো ভ্যালুয়েবল চিন্তা, আসল আকার ও আসল কোয়ালিটিতে কাটা, কোনো টেক্সট নেই, যাতে তুমি পরে এডিটরে নিয়ে রিক্যাপ বানাতে পারো। চাইলে উপরে টিক দিয়ে ক্যাপশন/হুক টাইটেল যোগ করতে পারো।</div>
+    <input type="hidden" id="numRecaps" value="10">
+    <input type="hidden" id="recapSec" value="120">
     <div style="margin-top:16px"><button onclick="startUpload()">রিক্যাপ বানাও</button></div>
     <div class="hint">টুল নিজে ছোট পাওয়ারফুল মুহূর্ত বেছে নেয়, ক্যাপশন বসায়, হুক টাইটেল দেয়, আর virality স্কোর দেয়। লম্বা ভিডিওতে কয়েক মিনিট লাগবে।</div>
     <div class="err" id="uploadErr"></div>
@@ -200,6 +210,9 @@ async function startUpload(){
   fd.append("num_clips",document.getElementById("numClips").value);
   fd.append("num_recaps",document.getElementById("numRecaps").value);
   fd.append("recap_sec",document.getElementById("recapSec").value);
+  var clen=document.getElementById("clipLen").value.split(",");
+  fd.append("clip_min",clen[0]);
+  fd.append("clip_max",clen[1]);
   fd.append("aspect",document.getElementById("aspect").value);
   fd.append("captions",document.getElementById("captions").checked?"1":"0");
   fd.append("hook_title",document.getElementById("hookTitle").checked?"1":"0");
@@ -220,7 +233,7 @@ async function poll(){
   if(d.status==="error"){ document.getElementById("procErr").textContent="সমস্যা: "+(d.error||"অজানা"); return; }
   if(d.status==="done"){
     CLIPS=d.clips; RECAPS=d.recaps; POST=d.post||{};
-    const ar={"9:16":"9/16","1:1":"1/1","16:9":"16/9"}[d.aspect]||"9/16";
+    const ar={"9:16":"9/16","1:1":"1/1","16:9":"16/9","original":"16/9"}[d.aspect]||"16/9";
     document.documentElement.style.setProperty("--ar",ar);
     document.getElementById("progress").style.display="none";
     showPost(); showRecaps();
